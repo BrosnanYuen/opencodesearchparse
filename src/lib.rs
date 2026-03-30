@@ -268,6 +268,9 @@ const PI: f64 = 3.14;
         ];
         for (lang, path) in langs {
             let segments = parse_file(path, lang, 1).expect("parse_file failed");
+            for seg in &segments {
+                println!("====S===\n{}\n=======E======\n",seg.content);
+            }
             assert!(!segments.is_empty());
         }
     }
