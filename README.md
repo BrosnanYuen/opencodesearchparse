@@ -1,4 +1,4 @@
-# Code Segment Parser
+# Open Code Search Parser
 
 A Rust library designed to parse, extract, and chunk source code into manageable segments. This tool is ideal for processing large codebases, preparing code for LLM context windows, or extracting logical blocks (like functions, structs, and classes) from source files.
 
