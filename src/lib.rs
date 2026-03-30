@@ -12,11 +12,6 @@ pub enum CodeLanguage {
     Rust,
 }
 
-#[derive(Debug, Clone)]
-pub struct CodeSegment {
-    pub content: String,
-}
-
 fn get_file_extension(lang: CodeLanguage) -> &'static str {
     match lang {
         CodeLanguage::C => "c",
@@ -27,21 +22,17 @@ fn get_file_extension(lang: CodeLanguage) -> &'static str {
     }
 }
 
-pub fn parse_str(source: &str, _lang: CodeLanguage, _thread_num: u16) -> Result<Vec<CodeSegment>> {
-    let segments: Vec<CodeSegment> = source
+pub fn parse_str(source: &str, _lang: CodeLanguage, _thread_num: u16) -> Result<Vec<String>> {
+    let segments: Vec<String> = source
         .split("\n\n")
         .filter(|block| !block.trim().is_empty())
-        .map(|block| CodeSegment {
-            content: block.trim().to_string(),
-        })
+        .map(|block| block.trim().to_string())
         .collect();
     if segments.is_empty() {
-        let segments: Vec<CodeSegment> = source
+        let segments: Vec<String> = source
             .lines()
             .filter(|line| !line.trim().is_empty())
-            .map(|line| CodeSegment {
-                content: line.to_string(),
-            })
+            .map(|line| line.to_string())
             .collect();
         Ok(segments)
     } else {
@@ -49,16 +40,12 @@ pub fn parse_str(source: &str, _lang: CodeLanguage, _thread_num: u16) -> Result<
     }
 }
 
-pub fn parse_file(
-    file_path: &str,
-    lang: CodeLanguage,
-    thread_num: u16,
-) -> Result<Vec<CodeSegment>> {
+pub fn parse_file(file_path: &str, lang: CodeLanguage, thread_num: u16) -> Result<Vec<String>> {
     let content = fs::read_to_string(file_path)?;
     parse_str(&content, lang, thread_num)
 }
 
-pub fn parse_dir(dir_path: &str, lang: CodeLanguage, thread_num: u16) -> Result<Vec<CodeSegment>> {
+pub fn parse_dir(dir_path: &str, lang: CodeLanguage, thread_num: u16) -> Result<Vec<String>> {
     let extension = get_file_extension(lang);
     let files: Vec<_> = WalkDir::new(dir_path)
         .into_iter()
@@ -72,9 +59,9 @@ pub fn parse_dir(dir_path: &str, lang: CodeLanguage, thread_num: u16) -> Result<
         .num_threads(num_threads.max(1))
         .build()?;
 
-    let mut all_segments = Vec::new();
+    let mut all_segments: Vec<String> = Vec::new();
     pool.install(|| {
-        let segments: Vec<Vec<CodeSegment>> = files
+        let segments: Vec<Vec<String>> = files
             .par_iter()
             .map(|file| parse_file(file, lang, thread_num).unwrap_or_else(|_| vec![]))
             .collect();
@@ -119,12 +106,12 @@ void print_hello() {
 "#;
         let segments = parse_str(source, CodeLanguage::C, 1).expect("parse_str failed for C");
         assert_eq!(segments.len(), 6);
-        assert!(segments[0].content.contains("#include <stdio.h>"));
-        assert!(segments[1].content.contains("global_var"));
-        assert!(segments[2].content.contains("struct Point"));
-        assert!(segments[3].content.contains("int add"));
-        assert!(segments[4].content.contains("print_hello"));
-        assert!(segments[5].content.contains("#define MAX"));
+        assert!(segments[0].contains("#include <stdio.h>"));
+        assert!(segments[1].contains("global_var"));
+        assert!(segments[2].contains("struct Point"));
+        assert!(segments[3].contains("int add"));
+        assert!(segments[4].contains("print_hello"));
+        assert!(segments[5].contains("#define MAX"));
     }
 
     #[test]
@@ -156,11 +143,11 @@ int multiply(int a, int b) {
 "#;
         let segments = parse_str(source, CodeLanguage::Cpp, 1).expect("parse_str failed for Cpp");
         assert_eq!(segments.len(), 5);
-        assert!(segments[0].content.contains("#include <iostream>"));
-        assert!(segments[1].content.contains("globalVar"));
-        assert!(segments[2].content.contains("class Car"));
-        assert!(segments[3].content.contains("int multiply"));
-        assert!(segments[4].content.contains("#define LONG_STRING"));
+        assert!(segments[0].contains("#include <iostream>"));
+        assert!(segments[1].contains("globalVar"));
+        assert!(segments[2].contains("class Car"));
+        assert!(segments[3].contains("int multiply"));
+        assert!(segments[4].contains("#define LONG_STRING"));
     }
 
     #[test]
@@ -195,10 +182,10 @@ PI = 3.14
         let segments =
             parse_str(source, CodeLanguage::Python, 1).expect("parse_str failed for Python");
         assert_eq!(segments.len(), 4);
-        assert!(segments[0].content.contains("global_var"));
-        assert!(segments[1].content.contains("def add"));
-        assert!(segments[2].content.contains("class Car"));
-        assert!(segments[3].content.contains("PI = 3.14"));
+        assert!(segments[0].contains("global_var"));
+        assert!(segments[1].contains("def add"));
+        assert!(segments[2].contains("class Car"));
+        assert!(segments[3].contains("PI = 3.14"));
     }
 
     #[test]
@@ -230,11 +217,11 @@ const PI: f64 = 3.14;
 "#;
         let segments = parse_str(source, CodeLanguage::Rust, 1).expect("parse_str failed for Rust");
         assert_eq!(segments.len(), 5);
-        assert!(segments[0].content.contains("GLOBAL_VAR"));
-        assert!(segments[1].content.contains("fn add"));
-        assert!(segments[2].content.contains("struct Point"));
-        assert!(segments[3].content.contains("impl Rectangle"));
-        assert!(segments[4].content.contains("PI"));
+        assert!(segments[0].contains("GLOBAL_VAR"));
+        assert!(segments[1].contains("fn add"));
+        assert!(segments[2].contains("struct Point"));
+        assert!(segments[3].contains("impl Rectangle"));
+        assert!(segments[4].contains("PI"));
     }
 
     #[test]
@@ -269,7 +256,7 @@ const PI: f64 = 3.14;
         for (lang, path) in langs {
             let segments = parse_file(path, lang, 1).expect("parse_file failed");
             for seg in &segments {
-                println!("====S===\n{}\n=======E======\n",seg.content);
+                println!("====S===\n{}\n=======E======\n",seg);
             }
             assert!(!segments.is_empty());
         }

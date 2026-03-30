@@ -19,31 +19,31 @@ This library relies on the following crates:
 ## Usage
 
 ### 1. Parsing a Raw String
-You can parse a raw string directly into a `Vec<CodeSegment>`.
+You can parse a raw string directly into a `Vec<String>`.
 
 ```rust
-use code_segment_parser::{parse_str, CodeLanguage};
+use opencodesearchparse::{parse_str, CodeLanguage};
 
 let num_threads = 4;
 let source = "fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n\nfn sub(a: i32, b: i32) -> i32 {\n    a - b\n}";
 let segments = parse_str(source, CodeLanguage::Rust, num_threads).unwrap();
 
 assert_eq!(segments.len(), 2);
-println!("{}", segments[0].content); // Prints the `add` function
+println!("{}", segments[0]); // Prints the `add` function
 ```
 
 
 ### 2. Parsing a Single File
 Read and chunk a specific source file.
 ```rust
-use code_segment_parser::{parse_file, CodeLanguage};
+use opencodesearchparse::{parse_file, CodeLanguage};
 
 let num_threads = 4;
 let file_path = "src/main.rs";
 let segments = parse_file(file_path, CodeLanguage::Rust, num_threads).unwrap();
 
 for segment in segments {
-    println!("--- Segment ---\n{}\n", segment.content);
+    println!("--- Segment ---\n{}\n", segment);
 }
 ```
 
@@ -51,7 +51,7 @@ for segment in segments {
 
 Recursively scan a directory, filter by a specific language, and process the files in parallel.
 ```rust
-use code_segment_parser::{parse_dir, CodeLanguage};
+use opencodesearchparse::{parse_dir, CodeLanguage};
 
 let dir_path = "./src";
 let thread_count = 4; // Adjust based on your CPU cores
@@ -72,12 +72,5 @@ pub enum CodeLanguage {
     Python,
     JavaScript,
     Rust,
-}
-```
-
-Struct containing the extracted code block.
-```rust
-pub struct CodeSegment {
-    pub content: String,
 }
 ```
