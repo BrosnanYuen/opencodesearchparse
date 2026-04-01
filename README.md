@@ -1,76 +1,124 @@
 # Open Code Search Parser
 
-A Rust library designed to parse, extract, and chunk source code into manageable segments. This tool is ideal for processing large codebases, preparing code for LLM context windows, or extracting logical blocks (like functions, structs, and classes) from source files.
+`opencodesearchparser` is a Rust library for parsing source files into top-level code segments using Tree-sitter.
 
-## Features
-
-* **Multi-Language Support:** Natively targets and filters extensions for C, C++, Python, JavaScript, and Rust.
-* **Smart Segmentation:** Splits code blocks automatically based on blank line delimiters (`\n\n`), keeping logically cohesive blocks (like complete function definitions or classes) intact.
-* **Directory Walking:** Recursively scans directories to find and parse all files matching a specific target language.
-* **Parallel Processing:** Utilizes `rayon` to process multiple files across directories concurrently, configurable by thread count.
-
-## Dependencies
-
-This library relies on the following crates:
-* [`anyhow`](https://crates.io/crates/anyhow) - For idiomatic error handling.
-* [`rayon`](https://crates.io/crates/rayon) - For parallel processing over directories.
-* [`walkdir`](https://crates.io/crates/walkdir) - For recursive directory traversal.
-
-## Usage
-
-### 1. Parsing a Raw String
-You can parse a raw string directly into a `Vec<String>`.
+## Public API
 
 ```rust
-use opencodesearchparse::{parse_str, CodeLanguage};
-
-let num_threads = 4;
-let source = "fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n\nfn sub(a: i32, b: i32) -> i32 {\n    a - b\n}";
-let segments = parse_str(source, CodeLanguage::Rust, num_threads).unwrap();
-
-assert_eq!(segments.len(), 2);
-println!("{}", segments[0]); // Prints the `add` function
-```
-
-
-### 2. Parsing a Single File
-Read and chunk a specific source file.
-```rust
-use opencodesearchparse::{parse_file, CodeLanguage};
-
-let num_threads = 4;
-let file_path = "src/main.rs";
-let segments = parse_file(file_path, CodeLanguage::Rust, num_threads).unwrap();
-
-for segment in segments {
-    println!("--- Segment ---\n{}\n", segment);
-}
-```
-
-### 3. Parsing an Entire Directory
-
-Recursively scan a directory, filter by a specific language, and process the files in parallel.
-```rust
-use opencodesearchparse::{parse_dir, CodeLanguage};
-
-let dir_path = "./src";
-let thread_count = 4; // Adjust based on your CPU cores
-
-// Recursively finds all `.rs` files and parses them using 4 threads
-let all_rust_segments = parse_dir(dir_path, CodeLanguage::Rust, thread_count).unwrap();
-
-println!("Extracted {} total segments across the directory.", all_rust_segments.len());
-```
-
-### 4. Data Structures
-
-Enum representing the supported target languages. Determines which file extensions are picked up during directory traversal.
-```rust
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CodeLanguage {
     C,
     Cpp,
+    Go,
+    Java,
+    Kotlin,
     Python,
     JavaScript,
+    Js,
+    Ts,
+    Php,
+    Proto,
+    R,
     Rust,
 }
+
+pub fn parse_str(source: &str, lang: CodeLanguage, thread_num: u16) -> anyhow::Result<Vec<String>>;
+pub fn parse_file(file_path: &str, lang: CodeLanguage, thread_num: u16) -> anyhow::Result<Vec<String>>;
+pub fn parse_dir(dir_path: &str, lang: CodeLanguage, thread_num: u16) -> anyhow::Result<Vec<String>>;
+
+pub mod recursive_character_text_splitter;
+```
+
+`thread_num == 0` is treated as `1` thread internally.
+
+## Current Language Support
+
+| Area | Supported now |
+|---|---|
+| `parse_str` / `parse_file` parsing | `C`, `Cpp`, `Python`, `JavaScript`, `Js`, `Rust` |
+| `parse_dir` extension filtering | `C` (`.c`), `Cpp` (`.cpp`), `Python` (`.py`), `JavaScript`/`Js` (`.js`), `Rust` (`.rs`) |
+| Other `CodeLanguage` variants | Present in the enum, but currently return an error in parsing and/or directory mapping |
+
+## Segmentation Behavior (Current)
+
+- C/C++: keeps top-level functions, declarations, struct/class/enum/union/type definitions, and preprocessor nodes (`include`, `define`, macro function define, conditional directives, and preprocessor calls like `#pragma`).
+- C/C++ struct/class/enum/union declarations are emitted with trailing `;` when it is a separate sibling node.
+- Python: keeps top-level function definitions, class definitions, expression statements, assignments, and global statements.
+- JavaScript/Js: keeps top-level function declarations, class declarations, lexical/variable declarations, and expression statements.
+- Rust: keeps top-level nodes whose kinds end with `_item` or `_definition`.
+- Top-level comment nodes and empty/whitespace-only segments are skipped.
+
+## Parallelism
+
+- `parse_str` uses a Rayon thread pool (`thread_num`) for segment materialization.
+- `parse_file` reads one file, then calls `parse_str` with the same `thread_num`.
+- `parse_dir` walks directories with `walkdir`, filters by extension, then parses matching files in parallel with Rayon.
+
+## RecursiveCharacterTextSplitter
+
+`recursive_character_text_splitter::RecursiveCharacterTextSplitter` provides recursive chunking with configurable separators, chunk size, and overlap.
+
+Key constructors:
+
+```rust
+pub fn new(separators: Option<Vec<String>>, chunk_size: usize, chunk_overlap: usize) -> Self;
+pub fn from_language(language: CodeLanguage) -> Self;
+pub fn split_text(&self, text: &str) -> Vec<String>;
+```
+
+## Usage Examples
+
+### Parse a string
+
+```rust
+use anyhow::Result;
+use opencodesearchparser::{parse_str, CodeLanguage};
+
+fn main() -> Result<()> {
+    let source = r#"
+static GLOBAL_VAR: i32 = 42;
+fn add(a: i32, b: i32) -> i32 { a + b }
+"#;
+
+    let segments = parse_str(source, CodeLanguage::Rust, 4)?;
+    println!("segments: {}", segments.len());
+    Ok(())
+}
+```
+
+### Parse a file
+
+```rust
+use anyhow::Result;
+use opencodesearchparser::{parse_file, CodeLanguage};
+
+fn main() -> Result<()> {
+    let segments = parse_file("tests/data/rust/example.rs", CodeLanguage::Rust, 2)?;
+    println!("segments: {}", segments.len());
+    Ok(())
+}
+```
+
+### Parse a directory
+
+```rust
+use anyhow::Result;
+use opencodesearchparser::{parse_dir, CodeLanguage};
+
+fn main() -> Result<()> {
+    let segments = parse_dir("tests/data", CodeLanguage::Rust, 8)?;
+    println!("segments: {}", segments.len());
+    Ok(())
+}
+```
+
+### Use the recursive splitter
+
+```rust
+use opencodesearchparser::recursive_character_text_splitter::RecursiveCharacterTextSplitter;
+use opencodesearchparser::CodeLanguage;
+
+let splitter = RecursiveCharacterTextSplitter::from_language(CodeLanguage::Rust);
+let chunks = splitter.split_text("fn a() {}\n\nfn b() {}");
+assert!(!chunks.is_empty());
 ```

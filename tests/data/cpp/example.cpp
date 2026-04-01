@@ -1,7 +1,6 @@
 #include <iostream>
 
 int globalVar = 10;
-
 class Car {
 public:
     std::string brand;
@@ -18,7 +17,6 @@ public:
 int multiply(int a, int b) {
     return a * b;
 }
-
 #define LONG_STRING "This is a very long string that " \
                     "spans multiple lines using " \
                     "backslashes for continuation."
